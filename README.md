@@ -43,7 +43,7 @@ wget https://repo.anaconda.com/archive/Anaconda3-2025.12-2-Linux-x86_64.sh
 ## 🔐 (Optional) Verify Installer
 
 ```bash
-sha256sum Anaconda3-latest-Linux-x86_64.sh
+sha256sum Anaconda3-2025.12-2-linux-x86_64.sh
 ```
 
 Compare with the checksum from the official Anaconda website.
