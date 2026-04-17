@@ -55,7 +55,8 @@ Compare with the checksum from the official Anaconda website.
 Run the installer:
 
 ```bash
-sudo bash Anaconda3-latest-Linux-x86_64.sh
+sudo bash Anaconda3-2025.12-2-Linux-x86_64.sh
+
 ```
 
 ### During installation:
