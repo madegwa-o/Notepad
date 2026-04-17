@@ -35,7 +35,7 @@ sudo apt update && sudo apt upgrade -y
 
 ```bash
 cd ~/Downloads
-wget https://repo.anaconda.com/archive/Anaconda3-latest-Linux-x86_64.sh
+wget https://repo.anaconda.com/archive/Anaconda3-2025.12-2-Linux-x86_64.sh
 ```
 
 ---
