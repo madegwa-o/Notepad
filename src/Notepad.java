@@ -17,7 +17,9 @@ class Notepad implements ActionListener {
     private static final Color APP_BG = new Color(16, 20, 28);
     private static final Color HEADER_BG = new Color(24, 29, 39);
     private static final Color EDITOR_BG = new Color(10, 14, 23);
-    private static final Color HEADER_BUTTON_BG = new Color(37, 44, 58);
+    private static final Color PANEL_BG = new Color(30, 36, 50);
+    private static final Color PANEL_CARD_BG = new Color(39, 47, 64);
+    private static final Color ACCENT = new Color(68, 138, 255);
     private static final Color TEXT_PRIMARY = new Color(229, 233, 240);
     private static final Color TEXT_MUTED = new Color(150, 159, 179);
 
@@ -25,21 +27,15 @@ class Notepad implements ActionListener {
     private final JTextArea textArea;
     private final JTextArea lineNumbers;
     private final JLabel documentTitleLabel;
+    private final JLabel lineCountValue;
+    private final JLabel wordCountValue;
+    private final JLabel charCountValue;
+    private final JLabel charNoSpaceCountValue;
     private final JLabel statusLabel;
-    private final JScrollPane scrollPane;
-    private final JPanel statusBar;
-
     private JMenuItem statusBarMenuItem;
     private JMenuItem wordWrapMenuItem;
-    private JMenuItem openItem;
-    private JMenuItem saveItem;
-    private JMenuItem saveAsItem;
-    private JMenuItem exitItem;
-    private JMenuItem cutItem;
-    private JMenuItem copyItem;
-    private JMenuItem pasteItem;
-    private JMenuItem zoomInItem;
-    private JMenuItem zoomOutItem;
+    private final JScrollPane scrollPane;
+    private final JPanel statusBar;
 
     private File currentFile;
     private float currentFontSize = 15f;
@@ -49,8 +45,8 @@ class Notepad implements ActionListener {
     Notepad() {
         frame = new JFrame("Text Editor");
         frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
-        frame.setMinimumSize(new Dimension(880, 560));
-        frame.setSize(1080, 700);
+        frame.setMinimumSize(new Dimension(900, 560));
+        frame.setSize(1120, 700);
         frame.setLocationRelativeTo(null);
 
         JMenuBar menuBar = createMenuBar();
@@ -71,29 +67,44 @@ class Notepad implements ActionListener {
         scrollPane.getVerticalScrollBar().setUnitIncrement(16);
 
         JPanel editorPanel = new JPanel(new BorderLayout());
-        editorPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+        editorPanel.setBorder(new EmptyBorder(10, 10, 10, 6));
         editorPanel.setBackground(APP_BG);
         editorPanel.add(scrollPane, BorderLayout.CENTER);
 
-        root.add(editorPanel, BorderLayout.CENTER);
+        JPanel rightPanel = createStatisticsPanel();
+
+        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, editorPanel, rightPanel);
+        splitPane.setDividerLocation(760);
+        splitPane.setResizeWeight(0.77);
+        splitPane.setBorder(BorderFactory.createEmptyBorder());
+        splitPane.setDividerSize(3);
+        splitPane.setBackground(APP_BG);
+        splitPane.setContinuousLayout(true);
+
+        root.add(splitPane, BorderLayout.CENTER);
 
         statusLabel = new JLabel("Ln 1, Col 1");
         statusLabel.setForeground(TEXT_MUTED);
         statusLabel.setBorder(new EmptyBorder(4, 10, 4, 10));
         statusBar = new JPanel(new BorderLayout());
         statusBar.setBackground(HEADER_BG);
-        statusBar.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(30, 36, 50)));
+        statusBar.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, PANEL_BG));
         statusBar.add(statusLabel, BorderLayout.WEST);
-        root.add(statusBar, BorderLayout.SOUTH);
 
+        root.add(statusBar, BorderLayout.SOUTH);
         frame.setContentPane(root);
 
         documentTitleLabel = new JLabel("New Document");
         documentTitleLabel.setForeground(TEXT_PRIMARY);
         documentTitleLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
-        header.add(documentTitleLabel, BorderLayout.CENTER);
+        header.add(documentTitleLabel);
 
-        textArea.getDocument().addDocumentListener((SimpleDocumentListener) e -> updateLineNumbers());
+        lineCountValue = findLabel(rightPanel, "lineCountValue");
+        wordCountValue = findLabel(rightPanel, "wordCountValue");
+        charCountValue = findLabel(rightPanel, "charCountValue");
+        charNoSpaceCountValue = findLabel(rightPanel, "charNoSpaceCountValue");
+
+        textArea.getDocument().addDocumentListener((SimpleDocumentListener) e -> refreshDocumentStats());
         textArea.addCaretListener(this::handleCaretUpdate);
 
         frame.addWindowListener(new java.awt.event.WindowAdapter() {
@@ -103,6 +114,7 @@ class Notepad implements ActionListener {
             }
         });
 
+        refreshDocumentStats();
         updateLineNumbers();
         frame.setVisible(true);
     }
@@ -115,46 +127,44 @@ class Notepad implements ActionListener {
         JMenu fileMenu = new JMenu("Open");
         fileMenu.setForeground(TEXT_PRIMARY);
 
-        openItem = menuItem("Open", KeyEvent.VK_O, ActionEvent.CTRL_MASK);
-        saveItem = menuItem("Save", KeyEvent.VK_S, ActionEvent.CTRL_MASK);
-        saveAsItem = menuItem("Save As...", KeyEvent.VK_S, ActionEvent.CTRL_MASK | ActionEvent.SHIFT_MASK);
-        exitItem = menuItem("Exit", KeyEvent.VK_Q, ActionEvent.CTRL_MASK);
+        JMenuItem open = menuItem("Open", KeyEvent.VK_O, ActionEvent.CTRL_MASK);
+        JMenuItem save = menuItem("Save", KeyEvent.VK_S, ActionEvent.CTRL_MASK);
+        JMenuItem saveAs = menuItem("Save As...", KeyEvent.VK_S, ActionEvent.CTRL_MASK | ActionEvent.SHIFT_MASK);
+        JMenuItem exit = menuItem("Exit", KeyEvent.VK_Q, ActionEvent.CTRL_MASK);
 
-        fileMenu.add(openItem);
-        fileMenu.add(saveItem);
-        fileMenu.add(saveAsItem);
+        fileMenu.add(open);
+        fileMenu.add(save);
+        fileMenu.add(saveAs);
         fileMenu.addSeparator();
-        fileMenu.add(exitItem);
+        fileMenu.add(exit);
 
         JMenu editMenu = new JMenu("Edit");
         editMenu.setForeground(TEXT_PRIMARY);
-        cutItem = menuItem("Cut", KeyEvent.VK_X, ActionEvent.CTRL_MASK);
-        copyItem = menuItem("Copy", KeyEvent.VK_C, ActionEvent.CTRL_MASK);
-        pasteItem = menuItem("Paste", KeyEvent.VK_V, ActionEvent.CTRL_MASK);
-        editMenu.add(cutItem);
-        editMenu.add(copyItem);
-        editMenu.add(pasteItem);
+        JMenuItem cut = menuItem("Cut", KeyEvent.VK_X, ActionEvent.CTRL_MASK);
+        JMenuItem copy = menuItem("Copy", KeyEvent.VK_C, ActionEvent.CTRL_MASK);
+        JMenuItem paste = menuItem("Paste", KeyEvent.VK_V, ActionEvent.CTRL_MASK);
+        editMenu.add(cut);
+        editMenu.add(copy);
+        editMenu.add(paste);
 
         JMenu viewMenu = new JMenu("View");
         viewMenu.setForeground(TEXT_PRIMARY);
+
         JMenu zoomMenu = new JMenu("Zoom");
-        zoomInItem = menuItem("Zoom In", KeyEvent.VK_EQUALS, ActionEvent.CTRL_MASK);
-        zoomOutItem = menuItem("Zoom Out", KeyEvent.VK_MINUS, ActionEvent.CTRL_MASK);
-        zoomMenu.add(zoomInItem);
-        zoomMenu.add(zoomOutItem);
+        JMenuItem zoomIn = menuItem("Zoom In", KeyEvent.VK_EQUALS, ActionEvent.CTRL_MASK);
+        JMenuItem zoomOut = menuItem("Zoom Out", KeyEvent.VK_MINUS, ActionEvent.CTRL_MASK);
+        zoomMenu.add(zoomIn);
+        zoomMenu.add(zoomOut);
 
         statusBarMenuItem = menuItem("Status Bar ✓", -1, 0);
         wordWrapMenuItem = menuItem("Word Wrap", -1, 0);
+
         viewMenu.add(zoomMenu);
         viewMenu.add(statusBarMenuItem);
         viewMenu.add(wordWrapMenuItem);
 
-        for (JMenuItem item : new JMenuItem[]{
-                openItem, saveItem, saveAsItem, exitItem,
-                cutItem, copyItem, pasteItem,
-                zoomInItem, zoomOutItem,
-                statusBarMenuItem, wordWrapMenuItem
-        }) {
+        JMenuItem[] allItems = {open, save, saveAs, exit, cut, copy, paste, zoomIn, zoomOut, statusBarMenuItem, wordWrapMenuItem};
+        for (JMenuItem item : allItems) {
             item.addActionListener(this);
         }
 
@@ -170,69 +180,36 @@ class Notepad implements ActionListener {
         header.setBorder(new EmptyBorder(10, 14, 10, 14));
 
         JButton openButton = new JButton("Open ▾");
-        styleHeaderButton(openButton);
+        openButton.setFocusPainted(false);
+        openButton.setBackground(new Color(37, 44, 58));
+        openButton.setForeground(TEXT_PRIMARY);
+        openButton.setBorder(BorderFactory.createEmptyBorder(6, 12, 6, 12));
         openButton.addActionListener(e -> openFile());
 
         JPanel leftGroup = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         leftGroup.setOpaque(false);
         leftGroup.add(openButton);
 
-        JPanel rightGroup = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        rightGroup.setOpaque(false);
-        rightGroup.add(circleButton("i", null));
-        rightGroup.add(circleButton("⋮", this::showHamburgerMenu));
+        JPanel titlePanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+        titlePanel.setOpaque(false);
+
+        JPanel controls = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        controls.setOpaque(false);
+        controls.add(circleButton("i"));
+        controls.add(circleButton("⋮"));
 
         header.add(leftGroup, BorderLayout.WEST);
-        header.add(rightGroup, BorderLayout.EAST);
+        header.add(titlePanel, BorderLayout.CENTER);
+        header.add(controls, BorderLayout.EAST);
         return header;
     }
 
-    private void showHamburgerMenu(ActionEvent event) {
-        JButton source = (JButton) event.getSource();
-        JPopupMenu menu = new JPopupMenu();
-        menu.setBackground(new Color(47, 55, 74));
-        menu.setBorder(new EmptyBorder(8, 8, 8, 8));
-
-        menu.add(dropdownItem("New Window", "Ctrl+N", e -> clearDocument()));
-        menu.add(dropdownItem("Save", "Ctrl+S", e -> saveFile()));
-        menu.add(dropdownItem("Save As...", "Shift+Ctrl+S", e -> saveFileAs()));
-        menu.addSeparator();
-        menu.add(dropdownItem("Find/Replace...", "Ctrl+F", e -> focusEditor()));
-        menu.add(dropdownItem("Print...", "Ctrl+P", e -> focusEditor()));
-        menu.add(dropdownItem("Fullscreen", "F11", e -> toggleFullscreen()));
-        menu.addSeparator();
-        menu.add(dropdownItem("Preferences", "Ctrl+,", e -> showPreferences()));
-        menu.add(dropdownItem("Keyboard Shortcuts", "Ctrl+?", e -> showShortcuts()));
-        menu.add(dropdownItem("About Text Editor", "", e -> showAbout()));
-
-        menu.show(source, 0, source.getHeight() + 2);
-    }
-
-    private JMenuItem dropdownItem(String text, String shortcut, ActionListener action) {
-        String padded = shortcut.isEmpty() ? text : text + "    " + shortcut;
-        JMenuItem item = new JMenuItem(padded);
-        item.setForeground(TEXT_PRIMARY);
-        item.setBackground(new Color(47, 55, 74));
-        item.setFont(new Font("SansSerif", Font.PLAIN, 15));
-        item.setBorder(new EmptyBorder(8, 10, 8, 10));
-        item.addActionListener(action);
-        return item;
-    }
-
-    private void styleHeaderButton(AbstractButton button) {
-        button.setFocusPainted(false);
-        button.setBackground(HEADER_BUTTON_BG);
-        button.setForeground(TEXT_PRIMARY);
-        button.setBorder(BorderFactory.createEmptyBorder(6, 12, 6, 12));
-    }
-
-    private JButton circleButton(String label, ActionListener action) {
+    private JButton circleButton(String label) {
         JButton button = new JButton(label);
-        styleHeaderButton(button);
+        button.setForeground(TEXT_PRIMARY);
+        button.setBackground(new Color(48, 56, 74));
+        button.setFocusPainted(false);
         button.setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
-        if (action != null) {
-            button.addActionListener(action);
-        }
         return button;
     }
 
@@ -260,6 +237,67 @@ class Notepad implements ActionListener {
         return area;
     }
 
+    private JPanel createStatisticsPanel() {
+        JPanel side = new JPanel();
+        side.setBackground(APP_BG);
+        side.setBorder(new EmptyBorder(10, 6, 10, 10));
+        side.setLayout(new BoxLayout(side, BoxLayout.Y_AXIS));
+
+        JLabel sectionTitle = new JLabel("Statistics");
+        sectionTitle.setForeground(TEXT_PRIMARY);
+        sectionTitle.setFont(new Font("SansSerif", Font.BOLD, 30));
+        sectionTitle.setBorder(new EmptyBorder(0, 2, 14, 0));
+
+        JPanel card = new JPanel();
+        card.setLayout(new GridLayout(4, 1, 0, 8));
+        card.setBackground(PANEL_BG);
+        card.setBorder(new EmptyBorder(12, 12, 12, 12));
+
+        card.add(statRow("Lines", "0", "lineCountValue"));
+        card.add(statRow("Words", "0", "wordCountValue"));
+        card.add(statRow("All Characters", "0", "charCountValue"));
+        card.add(statRow("Characters, No Spaces", "0", "charNoSpaceCountValue"));
+
+        side.add(sectionTitle);
+        side.add(card);
+        side.add(Box.createVerticalGlue());
+        return side;
+    }
+
+    private JPanel statRow(String label, String value, String name) {
+        JPanel row = new JPanel(new BorderLayout());
+        row.setBackground(PANEL_CARD_BG);
+        row.setBorder(new EmptyBorder(8, 10, 8, 10));
+
+        JLabel title = new JLabel(label);
+        title.setForeground(TEXT_MUTED);
+        title.setFont(new Font("SansSerif", Font.PLAIN, 14));
+
+        JLabel amount = new JLabel(value);
+        amount.setName(name);
+        amount.setForeground(TEXT_PRIMARY);
+        amount.setFont(new Font("SansSerif", Font.BOLD, 24));
+
+        row.add(title, BorderLayout.NORTH);
+        row.add(amount, BorderLayout.CENTER);
+        return row;
+    }
+
+    private JLabel findLabel(Container parent, String name) {
+        for (Component c : parent.getComponents()) {
+            if (c instanceof JLabel && name.equals(c.getName())) {
+                return (JLabel) c;
+            }
+            if (c instanceof Container) {
+                JLabel nested = findLabel((Container) c, name);
+                if (nested != null) {
+                    return nested;
+                }
+            }
+        }
+        return null;
+    }
+
     private JMenuItem menuItem(String text, int keyCode, int modifiers) {
         JMenuItem item = new JMenuItem(text);
         if (keyCode >= 0) {
@@ -270,30 +308,19 @@ class Notepad implements ActionListener {
 
     @Override
     public void actionPerformed(ActionEvent e) {
-        Object source = e.getSource();
-
-        if (source == openItem) {
-            openFile();
-        } else if (source == saveItem) {
-            saveFile();
-        } else if (source == saveAsItem) {
-            saveFileAs();
-        } else if (source == exitItem) {
-            exitApp();
-        } else if (source == cutItem) {
-            textArea.cut();
-        } else if (source == copyItem) {
-            textArea.copy();
-        } else if (source == pasteItem) {
-            textArea.paste();
-        } else if (source == zoomInItem) {
-            adjustFontSize(1.5f);
-        } else if (source == zoomOutItem) {
-            adjustFontSize(-1.5f);
-        } else if (source == statusBarMenuItem) {
-            toggleStatusBar();
-        } else if (source == wordWrapMenuItem) {
-            toggleWordWrap();
+        String cmd = ((JMenuItem) e.getSource()).getText().replace(" ✓", "");
+        switch (cmd) {
+            case "Open" -> openFile();
+            case "Save" -> saveFile();
+            case "Save As..." -> saveFileAs();
+            case "Exit" -> exitApp();
+            case "Cut" -> textArea.cut();
+            case "Copy" -> textArea.copy();
+            case "Paste" -> textArea.paste();
+            case "Zoom In" -> adjustFontSize(1.5f);
+            case "Zoom Out" -> adjustFontSize(-1.5f);
+            case "Status Bar" -> toggleStatusBar();
+            case "Word Wrap" -> toggleWordWrap();
         }
     }
 
@@ -339,14 +366,6 @@ class Notepad implements ActionListener {
         }
     }
 
-    private void clearDocument() {
-        textArea.setText("");
-        textArea.setCaretPosition(0);
-        currentFile = null;
-        documentTitleLabel.setText("New Document");
-        frame.setTitle("Text Editor");
-    }
-
     private void toggleStatusBar() {
         statusBarVisible = !statusBarVisible;
         statusBar.setVisible(statusBarVisible);
@@ -374,6 +393,22 @@ class Notepad implements ActionListener {
         updateCaretPositionLabel();
     }
 
+    private void refreshDocumentStats() {
+        String text = textArea.getText();
+        int lines = textArea.getLineCount();
+        int words = text.trim().isEmpty() ? 0 : text.trim().split("\\s+").length;
+        int chars = text.length();
+        int charsNoSpaces = text.replaceAll("\\s", "").length();
+
+        lineCountValue.setText(String.valueOf(lines));
+        wordCountValue.setText(String.valueOf(words));
+        charCountValue.setText(String.valueOf(chars));
+        charNoSpaceCountValue.setText(String.valueOf(charsNoSpaces));
+
+        updateLineNumbers();
+        updateCaretPositionLabel();
+    }
+
     private void updateLineNumbers() {
         int lineCount = Math.max(1, textArea.getLineCount());
         StringBuilder sb = new StringBuilder();
@@ -381,7 +416,6 @@ class Notepad implements ActionListener {
             sb.append(i).append('\n');
         }
         lineNumbers.setText(sb.toString());
-        updateCaretPositionLabel();
     }
 
     private void updateCaretPositionLabel() {
@@ -393,34 +427,6 @@ class Notepad implements ActionListener {
         } catch (Exception ignored) {
             statusLabel.setText("Ln 1, Col 1");
         }
-    }
-
-    private void focusEditor() {
-        textArea.requestFocusInWindow();
-    }
-
-    private void toggleFullscreen() {
-        frame.dispose();
-        frame.setUndecorated(!frame.isUndecorated());
-        frame.setVisible(true);
-    }
-
-    private void showPreferences() {
-        JOptionPane.showMessageDialog(frame, "Preferences panel is not implemented yet.", "Preferences", JOptionPane.INFORMATION_MESSAGE);
-    }
-
-    private void showShortcuts() {
-        JOptionPane.showMessageDialog(frame,
-                "Ctrl+O Open\nCtrl+S Save\nShift+Ctrl+S Save As\nCtrl+F Find/Replace\nF11 Fullscreen",
-                "Keyboard Shortcuts",
-                JOptionPane.INFORMATION_MESSAGE);
-    }
-
-    private void showAbout() {
-        JOptionPane.showMessageDialog(frame,
-                "Text Editor clone UI built with Java Swing.",
-                "About Text Editor",
-                JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void exitApp() {
